@@ -31,4 +31,3 @@ def parse(file_name):
     return dictionary
 
 dictionary = parse("FW_1238.conf")
-print(dictionary['wanopt storage']['SSD']['size'])
