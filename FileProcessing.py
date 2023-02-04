@@ -1,4 +1,21 @@
+from fpdf import FPDF
 
+class PDF(FPDF):
+    def header(self):
+        if self.page_no() >1:
+            self.image('utils/logo.png', 150, 12, 35)
+            self.set_font('Arial', '', 11)
+            self.cell(0, 10,'Migració de la infraestructura de seguretat perimetral',0,1,'L')
+        # Line break
+        self.ln(20)
+
+    def footer(self):
+        # Go to 1.5 cm from bottom
+        self.set_y(-15)
+        # Select Arial italic 8
+        self.set_font('Arial', 'I', 8)
+        # Page number
+        self.cell(0, 10, 'Page %s' % self.page_no(), 0, 0, 'C')
 
 def parse(file_name):
     dictionary = {}
@@ -30,4 +47,21 @@ def parse(file_name):
                 current_edit = None
     return dictionary
 
+def front_page():
+    pdf_file.add_page()
+    pdf_file.set_font("Arial", size=24)
+    pdf_file.cell(190, 50, txt="My Front Page", ln=1, align="C")
+    pdf_file.set_line_width(8)
+    pdf_file.set_draw_color(255,165,0)
+    pdf_file.line(30, 20, 30, 280)
+
 dictionary = parse("FW_1238.conf")
+pdf_file = PDF()
+front_page()
+pdf_file.add_page()
+pdf_file.set_font('Courier', '', 22)
+pdf_file.cell(30, 10, 'Migració de la infraestructura de', 0, 1, 'C')
+pdf_file.output('TCM_ReportPDF')
+
+
+
