@@ -1,4 +1,4 @@
-import reportlab
+
 
 def parse(file_name):
     dictionary = {}
