@@ -70,12 +70,13 @@ def front_page():
     pdf_file.set_draw_color(255,165,0)
     pdf_file.line(20, 10, 20, 280)
 
+def create_index():
+    pdf_file.add_page('P', 'A4')
+
 dictionary = parse("FW_1238.conf")
 pdf_file = PDF()
 front_page()
 pdf_file.add_page()
-pdf_file.set_font('Courier', '', 22)
-pdf_file.cell(30, 10, 'Migració de la infraestructura de', 0, 1, 'C')
 pdf_file.output('TCM_ReportPDF')
 
 
