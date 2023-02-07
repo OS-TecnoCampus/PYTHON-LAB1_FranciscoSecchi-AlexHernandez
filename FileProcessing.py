@@ -10,12 +10,12 @@ class PDF(FPDF):
         self.ln(20)
 
     def footer(self):
-        # Go to 1.5 cm from bottom
-        self.set_y(-15)
-        # Select Arial italic 8
-        self.set_font('Arial', 'I', 8)
+        
+        if self.page_no() >1:
+            self.set_y(-15)
+            self.set_font('Arial', 'I', 8)
         # Page number
-        self.cell(0, 10, 'Page %s' % self.page_no(), 0, 0, 'C')
+            self.cell(0, 10, 'Pàgina %s | ' % self.page_no()+self.alias_nb_pages(), 0, 0, 'R')
 
 def parse(file_name):
     dictionary = {}
@@ -48,12 +48,27 @@ def parse(file_name):
     return dictionary
 
 def front_page():
-    pdf_file.add_page()
-    pdf_file.set_font("Arial", size=24)
-    pdf_file.cell(190, 50, txt="My Front Page", ln=1, align="C")
-    pdf_file.set_line_width(8)
+    pdf_file.add_page('P', 'A4')
+    pdf_file.image('utils/logo.png', 110, 40)
+    pdf_file.set_left_margin(30)
+    pdf_file.set_font("Arial", size=28)
+    pdf_file.ln(80)
+    pdf_file.cell(0, 5, txt="Migració de la infraestructura de", ln=1, align="L")
+    pdf_file.cell(0, 20, txt="seguretat perimetral per a", ln=1, align="L")
+    pdf_file.cell(0, 20, txt="TecnoCampus", ln=1, align="L")
+    pdf_file.ln()
+    pdf_file.set_font("Arial", size=14)
+    pdf_file.cell(0, 20, txt="Febrer, 2023", ln=1, align="L")
+    pdf_file.ln(65)
+    pdf_file.set_font("Arial", "B", size=8)
+    pdf_file.multi_cell(150,3,"\tLa informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
+                            " \tdisseminació, distribució o copia d,aquest document per qualsevol altre persona diferent als receptors"+
+                            " \toriginals queda estrictament prohibida. Si ha rebut aquest document per error, sis plau notifiquí"+
+                            " \timmediatament al emissor i esborri qualsevol copia d,aquest document.",
+                            align="J")
+    pdf_file.set_line_width(5)
     pdf_file.set_draw_color(255,165,0)
-    pdf_file.line(30, 20, 30, 280)
+    pdf_file.line(20, 10, 20, 280)
 
 dictionary = parse("FW_1238.conf")
 pdf_file = PDF()
