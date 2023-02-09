@@ -1,4 +1,7 @@
+import os
+from PyPDF2 import PdfMerger
 from fpdf import FPDF
+
 
 def parse(file_name):
     dictionary = {}
@@ -57,39 +60,49 @@ class PDF(FPDF):
 
 
 def front_page():
-    pdf_file.add_page('P', 'A4')
-    pdf_file.image('utils/logo.png', 110, 40)
-    pdf_file.set_left_margin(30)
-    pdf_file.set_font("Helvetica", size=28)
-    pdf_file.ln(80)
-    pdf_file.cell(0, 5, txt="Migració de la infraestructura de", ln=1, align="L")
-    pdf_file.cell(0, 20, txt="seguretat perimetral per a", ln=1, align="L")
-    pdf_file.cell(0, 20, txt="TecnoCampus", ln=1, align="L")
-    pdf_file.ln()
-    pdf_file.set_font("Helvetica", size=14)
-    pdf_file.cell(0, 20, txt="Febrer, 2023", ln=1, align="L")
-    pdf_file.ln(65)
-    pdf_file.set_font("Helvetica", "B", size=8)
-    pdf_file.multi_cell(150,3,"\tLa informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
+    pdf = PDF()
+    pdf.add_page('P', 'A4')
+    pdf.image('utils/logo.png', 110, 40)
+    pdf.set_left_margin(30)
+    pdf.set_font("Helvetica", size=28)
+    pdf.ln(80)
+    pdf.cell(0, 5, txt="Migració de la infraestructura de", ln=1, align="L")
+    pdf.cell(0, 20, txt="seguretat perimetral per a", ln=1, align="L")
+    pdf.cell(0, 20, txt="TecnoCampus", ln=1, align="L")
+    pdf.ln()
+    pdf.set_font("Helvetica", size=14)
+    pdf.cell(0, 20, txt="Febrer, 2023", ln=1, align="L")
+    pdf.ln(65)
+    pdf.set_font("Helvetica", "B", size=8)
+    pdf.multi_cell(150,3,"\tLa informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
                             " \tdisseminació, distribució o copia d,aquest document per qualsevol altre persona diferent als receptors"+
                             " \toriginals queda estrictament prohibida. Si ha rebut aquest document per error, sis plau notifiquí"+
                             " \timmediatament al emissor i esborri qualsevol copia d,aquest document.",
                             align="J")
-    pdf_file.set_line_width(5)
-    pdf_file.set_draw_color(255,165,0)
-    pdf_file.line(20, 10, 20, 280)
+    pdf.set_line_width(5)
+    pdf.set_draw_color(255,165,0)
+    pdf.line(20, 10, 20, 280)
+    return pdf
 
+def merge(pdf1, pdf2):
+    merger = PdfMerger()
+    merger.merge(position=0, fileobj=pdf2)
+    merger.merge(position=0, fileobj=pdf1)
+    merger.write('TCM_ReportPDF')
+    os.remove(pdf1)
+    os.remove(pdf2)
 
 sections = [("1.1 Introducció", 1), 
             ("1.2 Descripció", 2), 
             ("name 2.1", 3)]
 dictionary = parse("FW_1238.conf")
-pdf_file = PDF()
-front_page()
-pdf_file.add_page()
-pdf_file.create_index(sections)
-pdf_file.add_page()
-pdf_file.output('TCM_ReportPDF')
 
+frontpage = front_page()
+content = PDF()
+content.add_page()
+content.create_index(sections)
+content.add_page()
+frontpage.output('portada')
+content.output('contentPDF')
 
-
+pdf_final = merge('portada', 'contentPDF')
