@@ -34,6 +34,9 @@ def parse(file_name):
     return dictionary
 
 class PDF(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.sections = []
     def header(self):
         if self.page_no() >1:
             self.image('utils/logo.png', 150, 12, 35)
@@ -50,14 +53,24 @@ class PDF(FPDF):
         # Page number
             self.cell(0, 10, 'Pàgina %s | ' % self.page_no()+self.str_alias_nb_pages, 0, 0, 'R')
 
-    def create_index(self, sections):
+    def create_index(self):
         self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10,"Índex",0,1)
+        tab_width = [0, 10, 20]
 
-        for section in sections:
-            self.cell(0, 10, section[0], 0, link=self.add_link(section[1]))
-            self.cell(30, 10, str(section[1]), 0, 1)
+        for section in self.sections:
+            tabs = tab_width[section[1]-1]
+            link = self.add_link(section[3], 0, section[2])
+            self.cell(tabs, 10, section[0], ln=0, link=link)
+            self.ln()
 
+    def add_section(self, txt, priority):
+        self.set_text_color(255, 180, 0)
+        self.set_font('Helvetica', 'B', 14)
+        self.cell(0, 10,txt,0,1)
+        self.set_text_color(255, 255, 255)
+        self.sections.append((txt, priority, self.page_no(), self.get_y()))
+            
 
 def front_page():
     pdf = PDF()
@@ -74,35 +87,42 @@ def front_page():
     pdf.cell(0, 20, txt="Febrer, 2023", ln=1, align="L")
     pdf.ln(65)
     pdf.set_font("Helvetica", "B", size=8)
-    pdf.multi_cell(150,3,"\tLa informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
-                            " \tdisseminació, distribució o copia d,aquest document per qualsevol altre persona diferent als receptors"+
-                            " \toriginals queda estrictament prohibida. Si ha rebut aquest document per error, sis plau notifiquí"+
-                            " \timmediatament al emissor i esborri qualsevol copia d,aquest document.",
-                            align="J")
+    pdf.write(3,"La informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
+                    " disseminació, distribució o copia d,aquest document per qualsevol altre persona diferent als receptors"+
+                    " originals queda estrictament prohibida. Si ha rebut aquest document per error, sis plau notifiquí"+
+                    " immediatament al emissor i esborri qualsevol copia d,aquest document.")
     pdf.set_line_width(5)
     pdf.set_draw_color(255,165,0)
     pdf.line(20, 10, 20, 280)
-    return pdf
+    pdf.output('portada')
+    return 'portada'
 
-def merge(pdf1, pdf2):
+def index(sections):
+    pdf = PDF()
+    pdf.sections = sections
+    pdf.add_page('P', 'A4')
+    pdf.create_index()
+    pdf.output('index')
+    return 'index'
+
+def merge(pdf1, pdf2, name):
     merger = PdfMerger()
     merger.merge(position=0, fileobj=pdf2)
     merger.merge(position=0, fileobj=pdf1)
-    merger.write('TCM_ReportPDF')
+    merger.write(name)
     os.remove(pdf1)
     os.remove(pdf2)
+    return name
 
-sections = [("1.1 Introducció", 1), 
-            ("1.2 Descripció", 2), 
-            ("name 2.1", 3)]
 dictionary = parse("FW_1238.conf")
 
 frontpage = front_page()
 content = PDF()
 content.add_page()
-content.create_index(sections)
+content.add_section('1. Introduction', 1)
+content.ln(50)
+content.add_section('1.1 Description', 2)
 content.add_page()
-frontpage.output('portada')
-content.output('contentPDF')
-
-pdf_final = merge('portada', 'contentPDF')
+merged = merge(front_page(), index(content.sections), 'merg')
+content.output('content')
+pdf_final = merge(merged, 'content', 'TCM_Report')
