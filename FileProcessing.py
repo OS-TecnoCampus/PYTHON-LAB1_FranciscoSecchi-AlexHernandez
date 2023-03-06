@@ -12,8 +12,10 @@ def parse(file_name):
         for line in lines:
             line = line.strip()
             if line.startswith("#"):
-                current_config = line.split("=")[0]
+                current_config = line.split("=")[0][1:]
+                print(current_config)
                 value = line.split("=")[1:]
+                print(value)
                 dictionary[current_config] = value
             elif line.startswith("config"):
                 current_edit = None
@@ -67,10 +69,22 @@ class PDF(FPDF):
     def add_section(self, txt, priority):
         self.set_text_color(255, 180, 0)
         self.set_font('Helvetica', 'B', 14)
-        self.cell(0, 10,txt,0,1)
-        self.set_text_color(255, 255, 255)
+        self.cell(0, 7,txt,0,1)
+        self.ln()
+        self.reset_format()
         self.sections.append((txt, priority, self.page_no(), self.get_y()))
-            
+    
+    def reset_format(self):
+        self.set_text_color(0, 0, 0)
+        self.set_font('Helvetica', '', 12)
+        self.set_margins(20,20)
+
+    def list_strings(self, strings):
+        self.set_margins(30,20)
+        for string in strings:
+            self.cell(0,7,chr(149)+"\t\t"+string,0,0)
+            self.ln(15)
+        self.reset_format()
 
 def front_page():
     pdf = PDF()
@@ -90,7 +104,7 @@ def front_page():
     pdf.write(3,"La informació continguda en aquest document pot ser de caràcter privilegiat y/o confidencial. Qualsevol"+
                     " disseminació, distribució o copia d,aquest document per qualsevol altre persona diferent als receptors"+
                     " originals queda estrictament prohibida. Si ha rebut aquest document per error, sis plau notifiquí"+
-                    " immediatament al emissor i esborri qualsevol copia d,aquest document.")
+                    " immediatament al emissor i esborri qualsevol copia d'aquest document.")
     pdf.set_line_width(5)
     pdf.set_draw_color(255,165,0)
     pdf.line(20, 10, 20, 280)
@@ -114,14 +128,34 @@ def merge(pdf1, pdf2, name):
     os.remove(pdf2)
     return name
 
+
 dictionary = parse("FW_1238.conf")
 
 frontpage = front_page()
 content = PDF()
 content.add_page()
-content.add_section('1. Introduction', 1)
-content.ln(50)
-content.add_section('1.1 Description', 2)
+content.reset_format()
+
+# 1.
+content.add_section('1. Introducció', 1)
+# 1.1
+content.add_section('1.1. Descripció', 2)
+content.write(7,"El present document descriu la configuració realitzada en el dispositiu Fortigate-"+dictionary["config-version"][0][3:6]+" de Fortinet "+
+            "a la empresa TecnoCampus resultat de la substitució de un Firewall perimetral Cisco de "+
+            "l'organització.")
+# 1.2
+content.ln(15)
+content.add_section('1.2. Objectius', 2)
+content.write(7, "El objectiu d'aquest document és la de formalitzar el traspàs d'informació al equip tècnic"+
+                " responsable del manteniment de les infraestructures instal·lades. Aquesta informació fa"+
+                " referencia al disseny, instal·lació i configuració dels dispositius i sistemes afectats per implementació.")
+content.ln(15)
+content.cell(0, 7, "La present documentació inclou:")
+content.ln(15)
+strings = ["Descripció general de les infraestructures instal·lades.",
+            "Polítiques de filtratge de tràfic.", "Perfils de seguretat.", "Connexions Túnel."]
+content.list_strings(strings)
+# 1.3
 content.add_page()
 merged = merge(front_page(), index(content.sections), 'merg')
 content.output('content')
