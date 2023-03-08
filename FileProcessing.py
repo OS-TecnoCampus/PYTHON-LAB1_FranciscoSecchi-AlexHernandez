@@ -1,10 +1,12 @@
 import os
-from PyPDF2 import PdfMerger
+import re
+import PyPDF2
+from PyPDF2.generic import RectangleObject
 from fpdf import FPDF
 
 
 def parse(file_name):
-    dictionary = {}
+    dict = {}
     current_config = None
     current_edit = None
     with open(file_name, "r") as f:
@@ -13,27 +15,30 @@ def parse(file_name):
             line = line.strip()
             if line.startswith("#"):
                 current_config = line.split("=")[0][1:]
-                print(current_config)
-                value = line.split("=")[1:]
-                print(value)
-                dictionary[current_config] = value
+                value = re.split("[=-]|:", line)[1:]
+                dict[current_config] = value
             elif line.startswith("config"):
                 current_edit = None
                 current_config = " ".join(line.split(" ")[1:])
-                dictionary[current_config] = {}
+                # print(current_config)
+                dict[current_config] = {}
             elif line.startswith("edit"):
                 current_edit = line.split(" ")[1].strip("\"")
-                dictionary[current_config][current_edit] = {}
+                # print(current_edit)
+                dict[current_config][current_edit] = {}
             elif line.startswith("set"):
                 key = line.split(" ")[1].strip("\"")
+                # print(key)
                 value = line.split(" ")[2:]
+                # print(value)
                 if current_edit is None:
-                    dictionary[current_config][key] = value
+                    dict[current_config][key] = value
                 else: 
-                    dictionary[current_config][current_edit][key] = value
+                    dict[current_config][current_edit][key] = value
             elif line.startswith("next"):
                 current_edit = None
-    return dictionary
+            # print(current_config + ":  " +str(dict[current_config]))
+    return dict
 
 class PDF(FPDF):
     def __init__(self):
@@ -56,14 +61,15 @@ class PDF(FPDF):
             self.cell(0, 10, 'Pàgina %s | ' % self.page_no()+self.str_alias_nb_pages, 0, 0, 'R')
 
     def create_index(self):
+        self.add_page()
         self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10,"Índex",0,1)
         tab_width = [0, 10, 20]
 
         for section in self.sections:
             tabs = tab_width[section[1]-1]
-            link = self.add_link(section[3], 0, section[2])
-            self.cell(tabs, 10, section[0], ln=0, link=link)
+            # link = self.add_link(section[3], 0, section[2])
+            self.cell(tabs, 10, section[0], ln=0)
             self.ln()
 
     def add_section(self, txt, priority):
@@ -76,15 +82,41 @@ class PDF(FPDF):
     
     def reset_format(self):
         self.set_text_color(0, 0, 0)
+        self.set_fill_color(255, 255, 255)
+        self.set_draw_color(0, 0, 0)
         self.set_font('Helvetica', '', 12)
         self.set_margins(20,20)
 
-    def list_strings(self, strings):
+    def list_strings(self, strings, space):
         self.set_margins(30,20)
         for string in strings:
             self.cell(0,7,chr(149)+"\t\t"+string,0,0)
-            self.ln(15)
+            self.ln(space)
         self.reset_format()
+    
+    def add_table(self, widths, data):
+        for row in data:
+            for i,item in enumerate(row):
+                self.cell(widths[i], 10, str(item), 1, 0, 'L', 1)
+            self.ln()      
+        self.ln(15)
+
+    def add_headed_table(self, widths, data):
+        self.ln(15)
+        self.set_fill_color(255, 200, 60)
+        self.set_draw_color(255, 200, 0)
+        self.set_font('Arial', 'B')
+        for i,item in enumerate(data[0]):
+            self.cell(widths[i], 7, str(item), 1, 0, 'L', 1)
+        self.ln()
+        self.reset_format()  
+        self.set_draw_color(255, 200, 0)
+        for row in data[1:]:
+            for i,item in enumerate(row):
+                self.cell(widths[i], 10, str(item), 1, 0, 'L', 1)
+            self.ln()    
+        self.reset_format()  
+        self.ln(15)
 
 def front_page():
     pdf = PDF()
@@ -111,16 +143,17 @@ def front_page():
     pdf.output('portada')
     return 'portada'
 
+
+    
 def index(sections):
     pdf = PDF()
     pdf.sections = sections
-    pdf.add_page('P', 'A4')
     pdf.create_index()
     pdf.output('index')
     return 'index'
 
 def merge(pdf1, pdf2, name):
-    merger = PdfMerger()
+    merger = PyPDF2.PdfMerger()
     merger.merge(position=0, fileobj=pdf2)
     merger.merge(position=0, fileobj=pdf1)
     merger.write(name)
@@ -128,19 +161,33 @@ def merge(pdf1, pdf2, name):
     os.remove(pdf2)
     return name
 
+def get_data(final, config, keys, values=0, edits=None, include=False):
+    temp = dict[config] if edits is None else edits 
+    for y,edit in enumerate(temp):
+        row = []
+        if(include):
+            row.append(edit)
+        for i,key in enumerate(keys):
+            try:
+                row.append(dict[config][edit][key][values[i]].strip("\""))
+            except KeyError:
+                row.append("")
+        final.append(row)
+    return final
 
-dictionary = parse("FW_1238.conf")
+
+dict = parse("FW_1238.conf")
 
 frontpage = front_page()
 content = PDF()
 content.add_page()
 content.reset_format()
-
+version = dict["config-version"][0][3:]
 # 1.
 content.add_section('1. Introducció', 1)
 # 1.1
 content.add_section('1.1. Descripció', 2)
-content.write(7,"El present document descriu la configuració realitzada en el dispositiu Fortigate-"+dictionary["config-version"][0][3:6]+" de Fortinet "+
+content.write(7,"El present document descriu la configuració realitzada en el dispositiu Fortigate-"+version+" de Fortinet "+
             "a la empresa TecnoCampus resultat de la substitució de un Firewall perimetral Cisco de "+
             "l'organització.")
 # 1.2
@@ -154,9 +201,126 @@ content.cell(0, 7, "La present documentació inclou:")
 content.ln(15)
 strings = ["Descripció general de les infraestructures instal·lades.",
             "Polítiques de filtratge de tràfic.", "Perfils de seguretat.", "Connexions Túnel."]
-content.list_strings(strings)
+content.list_strings(strings, 10)
 # 1.3
-content.add_page()
+
+# 2.
+content.add_section("2. Configuració del Dispositiu", 1)
+content.write(7, "A continuació es detalla la configuració del disposiut Fortigate-"+version+".")
+# 2.1
+content.ln(15)
+content.add_section("2.1 Dispositiu", 2)
+widths = [40, 100]
+data = [["Marca-Model", "FortiGate "+version], 
+        ["OS/Firmware", "v"+dict["config-version"][1]+","+dict["config-version"][3]+" ("+dict["config-version"][4]+")"],
+        ["S/N",""]]
+content.add_table(widths, data)
+# 2.2
+content.add_section("2.2. Credencials d'accés", 2)
+content.set_font('Helvetica', 'B')
+content.cell(h= 7, txt="Accés: ", )
+content.reset_format()
+content.cell(0, 7, "https://10.132.4.254:"+ dict["system global"]["admin-sport"][0])
+content.ln(7)
+content.set_font('Helvetica', 'B')
+content.cell(h= 7, txt="Usuari: ")
+content.reset_format()
+content.cell(0, 7, "admin")
+content.ln(7)
+content.set_font('Helvetica', 'B')
+content.cell(h= 7, txt="Password: ")
+content.reset_format()
+content.cell(0, 7, "dfAS34")
+content.ln(7)
+content.set_font('Helvetica', 'B')
+content.cell(h= 7, txt="Restriccions d'accés: ")
+content.reset_format()
+content.cell(0, 7, "xarxes "
+                    +dict["system admin"]["admin"]["trusthost1"][0]+", "
+                    +dict["system admin"]["admin"]["trusthost2"][0]+", "
+                    +dict["system admin"]["admin"]["trusthost3"][0])
+content.ln(15)
+# 2.3
+content.add_section("2.3. General", 2)
+content.write(7,"El dispositiu està configurat en mode NAT, és a dir, es separen vàries xarxes a nivell tres d'enrutament.")
+content.ln(15)
+content.cell(h= 7, txt="DNS: ")
+content.ln(7)
+strings = ["Servidor Primari: "+dict["system dns"]["primary"][0],
+            "Servidor Secundari: "+dict["system dns"]["secondary"][0],
+            "Nom del domini Local: "+dict["system dns"]["domain"][0]]
+content.list_strings(strings, 7)
+content.ln(7)
+# 2.4
+content.add_section("2.4. Interfícies", 2)
+content.write(7, "El dispositiu instal·lat disposa d'una taula de polítiques de connexió per tal de definir el comportament del mateix per cada una de les connexions tractades.")
+
+widths = [35,30,60,0]
+data = [["Interficie", "Alias", "Address/FQDN","DHCPRelay"]]
+
+temp = dict["system interface"]
+for i,edit in enumerate(temp):
+    if(i>3):
+        break
+    row = []
+    row.append(edit)
+    row.append(temp[edit]["alias"][0].strip("\""))
+    row.append(temp[edit]["ip"][0])
+    try:
+        row.append(temp[edit]["dhcp-relay-ip"][0].strip("\""))
+    except KeyError:
+        row.append("-")
+    data.append(row)
+
+content.add_headed_table(widths, data)
+# 2.5.
+iter = iter(dict["router static"])
+content.add_section("2.5. Taula d'enrutament", 2)
+content.write(7,"S'ha definit "+ str(len(dict["router static"]))+" default gw per permetre la sortida per les dues sortides a internet de la organització. Per defecte el tràfic sortirà a través del GW "+
+                dict["router static"][next(iter)]["gateway"][0]+" (prioritat menor) i en cas de caiguda de la línia es redirigirà el tràfic a través del GW "+
+                dict["router static"][next(iter)]["gateway"][0])
+
+widths = [40,30,30,0]
+data = [["Xarxa Destí", "GW", "Interficie", "Prioritat"]]
+keys = ["gateway","device","priority"]
+data = get_data(data, "router static", keys, [0,0,0])
+for i in range(1, len(data)):
+    data[i].insert(0, "0.0.0.0/0.0.0.0")
+content.add_headed_table(widths, data)
+
+content.write(7, "S'ha definit una sèrie de Health-checks de ping a través de les interfícies wan per detectar la caiguda de les línies de comunicacions.")
+
+widths = [35,30,30,20,20,0]
+data = [["Servidor Destí", "GW", "Interficie", "Interval", "failtime", "recovery"]]
+keys = ["server","gateway-ip","srcintf","interval","failtime","recoverytime"]
+data = get_data(data, "system link-monitor", keys, [0,0,0,0,0,0])
+content.add_headed_table(widths, data)
+# 2.6.
+content.add_section("2.6. Objectes Adreces del Firewall", 2)
+content.write(7, "El dispositiu actualment te vinculats determinats objectes (noms descriptius) a adreces IP per tal de facilitar la seva utilització en el sistema.")
+
+widths = [40,25,50,30,0]
+data = [["Name", "Category", "Address/FQDN", "Interface", "Type*"]]
+edits = ["inside_srv","inside_wrk", "cloud1", "cloud2", "srv-demeter", "srv-devrepo","srv-nebulaz","vpn-net"]
+keys = ["-","subnet","-","type"]
+data = get_data(data, "firewall address", keys, [0,0,0,0], edits, True)
+for i in data[1:]:
+    i[1] = "Address"
+    i[3] = "Any"
+    i[4] = "Range" if i[4] == "iprange" else "Subnet" 
+content.add_headed_table(widths, data)
+# 2.7.
+content.add_section("2.7. Objectes Serveis", 2)
+content.write(7, "El dispositiu configurat disposa de serveis predeterminats per defecte establerts per FortiNet i addicionalment te introduïts serveis personalitzats. \nEls serveis predeterminats són:")
+
+widths = [40,50,30,30,0]
+data = [["Nom del Servei", "Categoria", "Ports TCP", "Ports UDP", "Protocol"]]
+keys = ["category","tcp-portrange","udp-portrange","protocol"]
+data = get_data(data, "firewall service custom", keys, [0,0,0,0], include=True)
+ 
+content.add_headed_table(widths, data)
+
+
 merged = merge(front_page(), index(content.sections), 'merg')
 content.output('content')
 pdf_final = merge(merged, 'content', 'TCM_Report')
