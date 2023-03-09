@@ -2,7 +2,7 @@ import os
 import re
 import PyPDF2
 from PyPDF2.generic import RectangleObject
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 
 
 def parse(file_name):
@@ -20,7 +20,7 @@ def parse(file_name):
             elif line.startswith("config"):
                 current_edit = None
                 current_config = " ".join(line.split(" ")[1:])
-                # print(current_config)
+                print(current_config)
                 dict[current_config] = {}
             elif line.startswith("edit"):
                 current_edit = line.split(" ")[1].strip("\"")
@@ -102,19 +102,29 @@ class PDF(FPDF):
         self.ln(15)
 
     def add_headed_table(self, widths, data):
-        self.ln(15)
+        self.ln(10)
         self.set_fill_color(255, 200, 60)
         self.set_draw_color(255, 200, 0)
         self.set_font('Arial', 'B')
-        for i,item in enumerate(data[0]):
-            self.cell(widths[i], 7, str(item), 1, 0, 'L', 1)
-        self.ln()
-        self.reset_format()  
-        self.set_draw_color(255, 200, 0)
-        for row in data[1:]:
+        height = []
+        for i in range(len(data)):
+            height.append(0)
+        for x,row in enumerate(data):
+            height[x] = self.font_size_pt
             for i,item in enumerate(row):
-                self.cell(widths[i], 10, str(item), 1, 0, 'L', 1)
-            self.ln()    
+                length = self.multi_cell(widths[i], self.font_size_pt, str(item), 1, 'L', 1, split_only=True)
+                if(len(length)>1):
+                    height[x] = self.font_size_pt * len(length)
+
+        for i,item in enumerate(data[0]):
+            self.multi_cell(widths[i], height[0], str(item), 1, 'L', 1, max_line_height=self.font_size_pt, new_x=XPos.RIGHT, new_y=YPos.TOP)
+        self.ln(height[0]) 
+        self.set_draw_color(255, 200, 0) 
+        self.set_font('Arial', '')
+        for x,row in enumerate(data[1:]):
+            for i,item in enumerate(row):
+                self.multi_cell(widths[i], height[x+1], str(item), 1, 'L', 0, max_line_height=self.font_size_pt, new_x=XPos.RIGHT, new_y=YPos.TOP)
+            self.ln(height[x+1])    
         self.reset_format()  
         self.ln(15)
 
@@ -161,15 +171,19 @@ def merge(pdf1, pdf2, name):
     os.remove(pdf2)
     return name
 
-def get_data(final, config, keys, values=0, edits=None, include=False):
+def get_data(final, config, keys, values=None, edits=None, include=False, separator=""):
     temp = dict[config] if edits is None else edits 
-    for y,edit in enumerate(temp):
+    for edit in temp:
         row = []
         if(include):
             row.append(edit)
         for i,key in enumerate(keys):
             try:
-                row.append(dict[config][edit][key][values[i]].strip("\""))
+                if(values is None):
+                    v = ""
+                    for value in range(len(dict[config][edit][key])):
+                        v += dict[config][edit][key][value].strip("\"")+separator
+                    row.append(v)
             except KeyError:
                 row.append("")
         final.append(row)
@@ -182,14 +196,15 @@ frontpage = front_page()
 content = PDF()
 content.add_page()
 content.reset_format()
-version = dict["config-version"][0][3:]
+
 # 1.
 content.add_section('1. Introducció', 1)
 # 1.1
 content.add_section('1.1. Descripció', 2)
-content.write(7,"El present document descriu la configuració realitzada en el dispositiu Fortigate-"+version+" de Fortinet "+
-            "a la empresa TecnoCampus resultat de la substitució de un Firewall perimetral Cisco de "+
-            "l'organització.")
+content.write(7,"El present document descriu la configuració realitzada en el dispositiu Fortigate-"
+                +dict["config-version"][0][3:]+" de Fortinet "+
+                "a la empresa TecnoCampus resultat de la substitució de un Firewall perimetral Cisco de "+
+                "l'organització.")
 # 1.2
 content.ln(15)
 content.add_section('1.2. Objectius', 2)
@@ -199,22 +214,25 @@ content.write(7, "El objectiu d'aquest document és la de formalitzar el traspà
 content.ln(15)
 content.cell(0, 7, "La present documentació inclou:")
 content.ln(15)
-strings = ["Descripció general de les infraestructures instal·lades.",
-            "Polítiques de filtratge de tràfic.", "Perfils de seguretat.", "Connexions Túnel."]
-content.list_strings(strings, 10)
+content.list_strings(["Descripció general de les infraestructures instal·lades.",
+                    "Polítiques de filtratge de tràfic.", 
+                    "Perfils de seguretat.", "Connexions Túnel."], 10)
 # 1.3
 
 # 2.
 content.add_section("2. Configuració del Dispositiu", 1)
-content.write(7, "A continuació es detalla la configuració del disposiut Fortigate-"+version+".")
+content.write(7, "A continuació es detalla la configuració del disposiut Fortigate-"
+                    +dict["config-version"][0][3:]+".")
+
 # 2.1
 content.ln(15)
 content.add_section("2.1 Dispositiu", 2)
 widths = [40, 100]
-data = [["Marca-Model", "FortiGate "+version], 
+data = [["Marca-Model", "FortiGate "+dict["config-version"][0][3:]], 
         ["OS/Firmware", "v"+dict["config-version"][1]+","+dict["config-version"][3]+" ("+dict["config-version"][4]+")"],
         ["S/N",""]]
 content.add_table(widths, data)
+
 # 2.2
 content.add_section("2.2. Credencials d'accés", 2)
 content.set_font('Helvetica', 'B')
@@ -240,6 +258,7 @@ content.cell(0, 7, "xarxes "
                     +dict["system admin"]["admin"]["trusthost2"][0]+", "
                     +dict["system admin"]["admin"]["trusthost3"][0])
 content.ln(15)
+
 # 2.3
 content.add_section("2.3. General", 2)
 content.write(7,"El dispositiu està configurat en mode NAT, és a dir, es separen vàries xarxes a nivell tres d'enrutament.")
@@ -251,6 +270,7 @@ strings = ["Servidor Primari: "+dict["system dns"]["primary"][0],
             "Nom del domini Local: "+dict["system dns"]["domain"][0]]
 content.list_strings(strings, 7)
 content.ln(7)
+
 # 2.4
 content.add_section("2.4. Interfícies", 2)
 content.write(7, "El dispositiu instal·lat disposa d'una taula de polítiques de connexió per tal de definir el comportament del mateix per cada una de les connexions tractades.")
@@ -271,9 +291,10 @@ for i,edit in enumerate(temp):
     except KeyError:
         row.append("-")
     data.append(row)
-
 content.add_headed_table(widths, data)
+
 # 2.5.
+content.add_page()
 iter = iter(dict["router static"])
 content.add_section("2.5. Taula d'enrutament", 2)
 content.write(7,"S'ha definit "+ str(len(dict["router static"]))+" default gw per permetre la sortida per les dues sortides a internet de la organització. Per defecte el tràfic sortirà a través del GW "+
@@ -283,7 +304,7 @@ content.write(7,"S'ha definit "+ str(len(dict["router static"]))+" default gw pe
 widths = [40,30,30,0]
 data = [["Xarxa Destí", "GW", "Interficie", "Prioritat"]]
 keys = ["gateway","device","priority"]
-data = get_data(data, "router static", keys, [0,0,0])
+data = get_data(data, "router static", keys)
 for i in range(1, len(data)):
     data[i].insert(0, "0.0.0.0/0.0.0.0")
 content.add_headed_table(widths, data)
@@ -293,17 +314,17 @@ content.write(7, "S'ha definit una sèrie de Health-checks de ping a través de 
 widths = [35,30,30,20,20,0]
 data = [["Servidor Destí", "GW", "Interficie", "Interval", "failtime", "recovery"]]
 keys = ["server","gateway-ip","srcintf","interval","failtime","recoverytime"]
-data = get_data(data, "system link-monitor", keys, [0,0,0,0,0,0])
+data = get_data(data, "system link-monitor", keys)
 content.add_headed_table(widths, data)
 # 2.6.
 content.add_section("2.6. Objectes Adreces del Firewall", 2)
 content.write(7, "El dispositiu actualment te vinculats determinats objectes (noms descriptius) a adreces IP per tal de facilitar la seva utilització en el sistema.")
 
-widths = [40,25,50,30,0]
+widths = [30,25,50,30,0]
 data = [["Name", "Category", "Address/FQDN", "Interface", "Type*"]]
 edits = ["inside_srv","inside_wrk", "cloud1", "cloud2", "srv-demeter", "srv-devrepo","srv-nebulaz","vpn-net"]
 keys = ["-","subnet","-","type"]
-data = get_data(data, "firewall address", keys, [0,0,0,0], edits, True)
+data = get_data(data, "firewall address", keys, edits=edits, include=True, separator="/")
 for i in data[1:]:
     i[1] = "Address"
     i[3] = "Any"
@@ -313,12 +334,80 @@ content.add_headed_table(widths, data)
 content.add_section("2.7. Objectes Serveis", 2)
 content.write(7, "El dispositiu configurat disposa de serveis predeterminats per defecte establerts per FortiNet i addicionalment te introduïts serveis personalitzats. \nEls serveis predeterminats són:")
 
-widths = [40,50,30,30,0]
+widths = [45,50,30,30,0]
 data = [["Nom del Servei", "Categoria", "Ports TCP", "Ports UDP", "Protocol"]]
 keys = ["category","tcp-portrange","udp-portrange","protocol"]
-data = get_data(data, "firewall service custom", keys, [0,0,0,0], include=True)
- 
+data = get_data(data, "firewall service custom", keys, include=True)
+content.add_headed_table(widths, data[:-2])
+content.write(7, "Els serveis addicionals són:")
+del data[1:-2]
+for i in data:
+    del i[4]
+for i in data[1:]:
+    i[1] = "Uncategorized"
 content.add_headed_table(widths, data)
+
+# 2.8.
+content.add_section("2.8. NATs d'entrada /Virtual IPs)", 2)
+content.write(7, "S'ha definit els següents NATs d'entrada (VIPs en nomenclatura Fortinet)")
+
+widths = [30,45,40,30,0]
+data = [["Name", "External IP Address/Range", "External Service Port", "Mapped IP Address/Range", "Map to Port"]]
+keys = ["extintf","extip", "extport", "mappedip", "mappedport", "protocol"]
+data = get_data(data, "firewall vip", keys, include=True)
+for i in data[1:]:
+    i[1] = i[1] +"/"+ i[2]
+    i[3] = i[3] +"/"+ i[6]
+    i[5] = i[5] +"/"+ i[6]
+    del i[2]
+    del i[-1]
+content.add_headed_table(widths, data)
+
+# 2.9
+content.add_section("2.9. Polítiques de Firewall", 2)
+content.write(7, "A continuació es mostren les polítiques de filtratge definides en el dispositiu Fortigate:")
+
+widths = [7,15,15,20,20,10,12,13,13,14,15,15,10,10]
+data = [["ID", "From", "To", "Source", "Destination", "Service", "Action", "AV", "Web Filter", "App Control", "IPS", "SSL Inspect", "Log", "NAT"]]
+keys = ["srcintf","dstintf", "srcaddr", "dstaddr","groups", "service", "action", "av-profile", "webfilter-profile", "application-list", "ips-sensor", "ssl-ssh-profile", "logtraffic", "nat"]
+data = get_data(data, "firewall policy", keys, include= True)
+for i in data[1:7]:
+    i[1] = i[1] +"("+ i[3]+")"
+for i in data[1:]:
+    i[2] = i[2] +" ("+ i[4]+")"
+    i[3] = i[3] +" ("+ i[5]+")"
+    del i[5]
+data.append(["", "Any", "Any", "All", "All", "ALL", "Deny","","","","","","",""])
+content.set_font_size(7)
+content.set_margins(left=10,top=20 ,right=10)
+content.add_headed_table(widths, data)
+
+# 2.10.
+content.add_section("2.10. Servei Antivirus", 2)
+content.write(7, "El servei antivirus perimetral proveeix d'una base de dades automatitzada per assegurar la protecció davant de possible contingut de malware detectat a través de la navegació WEB."
+                +"\nActualment el dispositiu te com el perfil d'antivirus activat "+
+                dict["antivirus profile"][-1]
+                +"que detecta i neteja malware i possibles connexions a xarxes de Botnets.")
+# 2.11
+content.add_section("2.11. Servei de Filtrage Web", 2)
+content.write(7, "El servei de filtratge de web, proveeix d'un servei de filtratge de contingut web a través dels protocols de navegació."
+                +"\nActualment en el dispositiu s'ha definit el perfil "+
+                dict["webfilter profile"][-1]
+                +"que actualment únicament genera logs de tot el tràfic de navegació web.")
+# 2.12
+content.add_section("2.12. Servei Application control", 2)
+content.write(7, "El servei de Application Control realitza un filtratge a nivell d'aplicació per tal de bloquejar o filtrar determinades comunicacions d'aplicacions."
+                +"\nEn el dispositiu s'ha activat el perfil "+
+                dict["application list"][-1]
+                +"i s'ha configurat per a generar logs de totes les aplicacions utilitzades i bloqueja totes les connexions d'aplicacions típiques de BotNets.")
+# 2.13
+content.add_section("2.13. Servei Intrusion Protection", 2)
+edit = dict["ips sensor"][-1]
+content.write(7, "El Servei de Intrusion Protection permet detectar possibles atacs de xarxa contra la infraestructura de la organització."
+                +"\nEn el dispositiu s'ha activat el perfil "
+                +edit
+                +" en les polítiques de navegació web i s'han activat el comportament per defecte (bloqueig en cas necessari o monitorzació) de les signatures de tipus "
+                +dict["ips sensor"][edit])
 
 
 merged = merge(front_page(), index(content.sections), 'merg')
