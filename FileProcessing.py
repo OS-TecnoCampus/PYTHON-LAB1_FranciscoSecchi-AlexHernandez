@@ -70,12 +70,15 @@ class PDF(FPDF):
         self.add_page()
         self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10,"Índex",0)
-        tab_width = [0, 10, 20]
+        self.ln()
+        tab_width = [10, 30, 40]
 
         for section in self.sections:
             tabs = tab_width[section[1]-1]
+            self.set_x(tabs)
             # link = self.add_link(section[3], 0, section[2])
-            self.cell(tabs, 10, section[0])
+            self.cell(50, 10, section[0])
+            self.cell(0, 10, str(section[2]), align='R')
             self.ln()
 
     def add_section(self, txt, priority):
