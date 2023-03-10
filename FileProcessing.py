@@ -11,6 +11,7 @@ def parse(lines):
     temp_lines = []
     for line in lines:
         line = line.strip()
+        # First 4 lines
         if line.startswith("#"):
             current_config = line.split("=")[0][1:]
             value = re.split("[=-]|:", line)[1:]
@@ -28,23 +29,18 @@ def parse(lines):
                 current_config = " ".join(line.split(" ")[1:])
                 dict[current_config] = {}
             else: temp_lines.append(line)
-            # print(current_config)
         elif line.startswith("edit"):
             current_edit = line.split(" ")[1].strip("\"")
-            # print(current_edit)
             dict[current_config][current_edit] = {}
         elif line.startswith("set"):
             key = line.split(" ")[1].strip("\"")
-            # print(key)
             value = line.split(" ")[2:]
-            # print(value)
             if current_edit is None:
                 dict[current_config][key] = value
             else: 
                 dict[current_config][current_edit][key] = value
         elif line.startswith("next"):
             current_edit = None
-        # print("\n"+current_config + "-->  " +str(dict[current_config]))
     return dict
 
 class PDF(FPDF):
@@ -76,7 +72,6 @@ class PDF(FPDF):
         for section in self.sections:
             tabs = tab_width[section[1]-1]
             self.set_x(tabs)
-            # link = self.add_link(section[3], 0, section[2])
             self.cell(50, 10, section[0])
             self.cell(0, 10, str(section[2]), align='R')
             self.ln()
@@ -184,25 +179,35 @@ def merge(pdf1, pdf2, name):
     return name
 
 def get_data(final, config, keys, values=None, edits=None, include=False, separator=""):
-    temp = dict[config] if edits is None else edits 
+    try:
+        temp = dict[config] if edits is None else edits 
+    except KeyError: return final
     for edit in temp:
         row = []
         if(include):
             row.append(edit)
-        for i,key in enumerate(keys):
+        for key in keys:
             try:
                 if(values is None):
                     v = ""
                     for value in range(len(dict[config][edit][key])):
-                        v += dict[config][edit][key][value].strip("\"")+separator
+                        v += get(config, edit, key, value).strip("\"")+separator
                     row.append(v)
             except KeyError:
                 row.append("")
         final.append(row)
     return final
+def get(config,  edit=None, set=None,value=0):
+    try:
+        if(edit is None):
+            if(set is None):
+                return dict[config][value]
+            return dict[config][set][value]
+        return dict[config][edit][set][value]
+    except KeyError: return ""
 
-
-with open("FW_1238.conf", "r") as f:
+filename = input("Enter file name: ")
+with open(filename, "r") as f:
         lines = f.readlines()
         dict = parse(lines)
 
@@ -261,7 +266,7 @@ content.add_section("2.2. Credencials d'accés", 2)
 content.set_font('Helvetica', 'B')
 content.cell(h= 7, txt="Accés: ", )
 content.reset_format()
-content.cell(0, 7, "https://10.132.4.254:"+ dict["system global"]["admin-sport"][0])
+content.cell(0, 7, "https://10.132.4.254:"+ get("system global","admin-sport",0))
 content.ln(7)
 content.set_font('Helvetica', 'B')
 content.cell(h= 7, txt="Usuari: ")
@@ -277,9 +282,9 @@ content.set_font('Helvetica', 'B')
 content.cell(h= 7, txt="Restriccions d'accés: ")
 content.reset_format()
 content.cell(0, 7, "xarxes "
-                    +dict["system admin"]["admin"]["trusthost1"][0]+", "
-                    +dict["system admin"]["admin"]["trusthost2"][0]+", "
-                    +dict["system admin"]["admin"]["trusthost3"][0])
+                    +get("system admin","admin","trusthost1")+", "
+                    +get("system admin","admin","trusthost2")+", "
+                    +get("system admin","admin","trusthost3"))
 content.ln(15)
 
 # 2.3
@@ -288,9 +293,9 @@ content.write(7,"El dispositiu està configurat en mode NAT, és a dir, es separ
 content.ln(15)
 content.cell(h= 7, txt="DNS: ")
 content.ln(7)
-strings = ["Servidor Primari: "+dict["system dns"]["primary"][0],
-            "Servidor Secundari: "+dict["system dns"]["secondary"][0],
-            "Nom del domini Local: "+dict["system dns"]["domain"][0].strip("\"")]
+strings = ["Servidor Primari: "+get("system dns",set="primary"),
+            "Servidor Secundari: "+get("system dns",set="secondary"),
+            "Nom del domini Local: "+get("system dns",set="domain").strip("\"")]
 content.list_strings(strings, 7)
 content.ln(7)
 
@@ -307,22 +312,18 @@ for i,edit in enumerate(temp):
         break
     row = []
     row.append(edit)
-    row.append(temp[edit]["alias"][0].strip("\""))
-    row.append(temp[edit]["ip"][0])
-    try:
-        row.append(temp[edit]["dhcp-relay-ip"][0].strip("\""))
-    except KeyError:
-        row.append("-")
+    row.append(get("system interface", edit, "alias").strip("\""))
+    row.append(get("system interface", edit, "ip"))
+    row.append(get("system interface", edit, "dhcp-relay-ip").strip("\""))
     data.append(row)
 content.add_headed_table(widths, data)
 
 # 2.5.
 content.add_page()
-iter = iter(dict["router static"])
 content.add_section("2.5. Taula d'enrutament", 2)
 content.write(7,"S'ha definit "+ str(len(dict["router static"]))+" default gw per permetre la sortida per les dues sortides a internet de la organització. Per defecte el tràfic sortirà a través del GW "+
-                dict["router static"][next(iter)]["gateway"][0]+" (prioritat menor) i en cas de caiguda de la línia es redirigirà el tràfic a través del GW "+
-                dict["router static"][next(iter)]["gateway"][0])
+                get("router static",0,"gateway")+" (prioritat menor) i en cas de caiguda de la línia es redirigirà el tràfic a través del GW "+
+                get("router static",1,"gateway"))
 
 widths = [40,30,30,0]
 data = [["Xarxa Destí", "GW", "Interficie", "Prioritat"]]
